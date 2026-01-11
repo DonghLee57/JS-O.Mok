@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="./icon.png">
+    <title>오목 Pro v5.5</title>
+    <style>
+        :root { --primary: #34495e; --accent: #e74c3c; --bg: #f4f7f6; }
+        body { display: flex; flex-direction: column; align-items: center; background-color: var(--bg); font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; }
+        .controls { margin-bottom: 15px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; width: 650px; }
+        .config-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .bot-panel { background: #ebf2f6; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+        .slider-box { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+        #status { font-size: 1.2rem; font-weight: bold; margin: 10px 0; color: var(--primary); }
+        #timer { font-family: monospace; color: var(--accent); font-size: 1.8rem; font-weight: bold; }
+        canvas { background-color: #e3a05b; box-shadow: 0 8px 25px rgba(0,0,0,0.2); cursor: pointer; border-radius: 4px; }
+        .buttons { margin-top: 15px; display: flex; gap: 10px; }
+        button { padding: 10px 18px; font-size: 1rem; cursor: pointer; background-color: var(--primary); color: white; border: none; border-radius: 6px; }
+        button#pauseBtn { background-color: #f39c12; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .forbidden-msg { color: var(--accent); font-size: 1.1rem; height: 26px; font-weight: bold; margin-top: 5px; }
+        .check-group { border: 1px solid #ddd; padding: 5px 10px; border-radius: 5px; background: #fff; }
+    </style>
+</head>
+<body>
+
+    <h1>오목 <small style="font-size: 0.5em; color: #888;">v5.5 Pro</small></h1>
+    
+    <div class="controls">
+        <div class="config-row">
+            <div>시간: <input type="number" id="timeInput" value="30" min="5" style="width:45px">초</div>
+            <label><input type="checkbox" id="aiMode" checked> 봇 대전</label>
+            <div class="check-group">
+                <label><input type="checkbox" id="blackForbidden" checked> 흑 금수</label>
+                <label style="margin-left:10px;"><input type="checkbox" id="whiteForbidden"> 백 금수</label>
+            </div>
+            <label><input type="checkbox" id="showDebug" checked> 가이드라인</label>
+            <button onclick="startGame()" style="background-color: #27ae60;">게임 시작</button>
+        </div>
+
+        <div class="bot-panel">
+            <div class="config-row">
+                <select id="botPreset" onchange="applyPreset()">
+                    <option value="easy">쉬움</option>
+                    <option value="normal" selected>보통</option>
+                    <option value="hard">어려움</option>
+                </select>
+                <div class="slider-box">탐색 깊이: <b id="depthVal">1</b> <input type="range" id="botDepth" min="1" max="2" value="1" oninput="updateBotUI()"></div>
+                <div class="slider-box">수비 비중: <b id="defVal">1.1</b> <input type="range" id="botDefense" min="0.5" max="2.5" step="0.1" value="1.1" oninput="updateBotUI()"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="timer">00:00</div>
+    <div id="status">설정을 확인하고 게임을 시작하세요.</div>
+    <div class="forbidden-msg" id="msg"></div>
+
+    <canvas id="omokCanvas" width="600" height="600"></canvas>
+
+    <div class="buttons">
+        <button id="undoBtn" onclick="undo()" disabled>무르기</button>
+        <button id="pauseBtn" onclick="togglePause()" disabled>일시정지</button>
+        <button onclick="location.reload()">초기화</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('omokCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusDisplay = document.getElementById('status');
+        const timerDisplay = document.getElementById('timer');
+        const msgDisplay = document.getElementById('msg');
+        
+        const size = 15, padding = 40, cellSize = (canvas.width - padding * 2) / (size - 1);
+        let board = Array.from({ length: size }, () => Array(size).fill(0));
+        let history = [], currentPlayer = 1;
+        let gameOver = true, isPaused = false, timerInterval = null, currentTurnTime = 0;
+        let lastForbiddenMove = null;
+
+        /**
+         * 패턴 매칭 최적화
+         * X: 현재 플레이어의 돌, _: 빈 공간
+         */
+        // 열린 4: 양쪽이 비어있는 4 (또는 한쪽만 막혔으나 즉시 승리 가능한 4는 금수 판정 시 4-4에 포함)
+        const isFour = (l) => /XXXX_| _XXXX|X_XXX|XX_XX|XXX_X/.test(l);
+        // 열린 3 (열린 4를 만들 수 있는 상태): 구멍 섞인 삼 포함
+        const isOpenThree = (l) => /_XXX__|__XXX_|_X_XX_|_XX_X_/.test(l);
+        // 육목 감지 (6개 이상의 돌)
+        const isOverline = (l) => /XXXXXX/.test(l);
+
+        function startGame() {
+            board = Array.from({ length: size }, () => Array(size).fill(0));
+            history = []; currentPlayer = 1; gameOver = false; isPaused = false;
+            document.getElementById('undoBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('pauseBtn').innerText = "일시정지";
+            msgDisplay.innerText = ""; lastForbiddenMove = null;
+            currentTurnTime = parseInt(document.getElementById('timeInput').value);
+            startTimer(); updateStatus(); draw();
+        }
+
+        function togglePause() {
+            if (gameOver) return;
+            isPaused = !isPaused;
+            document.getElementById('pauseBtn').innerText = isPaused ? "계속하기" : "일시정지";
+            statusDisplay.innerText = isPaused ? "일시정지 중..." : (currentPlayer === 1 ? "흑색 차례" : "백색 차례");
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!gameOver && !isPaused) {
+                    currentTurnTime--; updateTimerDisplay();
+                    if (currentTurnTime <= 0) endGame((currentPlayer === 1 ? "백색" : "흑색") + " 승리! (시간 초과)");
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(currentTurnTime / 60).toString().padStart(2, '0');
+            const s = (currentTurnTime % 60).toString().padStart(2, '0');
+            timerDisplay.innerText = `${m}:${s}`;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#333"; ctx.lineWidth = 1;
+            for (let i = 0; i < size; i++) {
+                ctx.beginPath(); ctx.moveTo(padding, padding + i * cellSize); ctx.lineTo(canvas.width - padding, padding + i * cellSize); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(padding + i * cellSize, padding); ctx.lineTo(padding + i * cellSize, canvas.height - padding); ctx.stroke();
+            }
+            ctx.fillStyle = "#333";
+            [3, 7, 11].forEach(r => [3, 7, 11].forEach(c => { ctx.beginPath(); ctx.arc(padding + r * cellSize, padding + c * cellSize, 4, 0, Math.PI * 2); ctx.fill(); }));
+
+            if (lastForbiddenMove && document.getElementById('showDebug').checked) drawForbiddenDebug(lastForbiddenMove);
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) if (board[r][c] !== 0) drawStone(r, c, board[r][c]);
+            }
+        }
+
+        function drawForbiddenDebug(move) {
+            const { r, c, dirs } = move;
+            ctx.save(); ctx.strokeStyle = "rgba(231, 76, 60, 0.6)"; ctx.lineWidth = 10; ctx.lineCap = "round";
+            dirs.forEach(([dr, dc]) => {
+                ctx.beginPath();
+                ctx.moveTo(padding + (c - dc * 4) * cellSize, padding + (r - dr * 4) * cellSize);
+                ctx.lineTo(padding + (c + dc * 4) * cellSize, padding + (r + dr * 4) * cellSize);
+                ctx.stroke();
+            });
+            ctx.restore();
+        }
+
+        function drawStone(r, c, type) {
+            const x = padding + c * cellSize, y = padding + r * cellSize;
+            ctx.beginPath(); ctx.arc(x, y, cellSize * 0.4, 0, Math.PI * 2);
+            const grad = ctx.createRadialGradient(x-5, y-5, 2, x, y, cellSize*0.4);
+            if (type === 1) { grad.addColorStop(0, "#666"); grad.addColorStop(1, "#000"); }
+            else { grad.addColorStop(0, "#fff"); grad.addColorStop(1, "#ccc"); }
+            ctx.fillStyle = grad; ctx.shadowBlur = 4; ctx.shadowColor = "rgba(0,0,0,0.3)"; ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (gameOver || isPaused || (document.getElementById('aiMode').checked && currentPlayer === 2)) return;
+            const rect = canvas.getBoundingClientRect();
+            const col = Math.round((e.clientX - rect.left - padding) / cellSize);
+            const row = Math.round((e.clientY - rect.top - padding) / cellSize);
+            lastForbiddenMove = null;
+            if (placeStone(row, col)) if (document.getElementById('aiMode').checked && !gameOver) setTimeout(makeBotMove, 400);
+        });
+
+        // --- 금수 판정 엔진 고도화 ---
+        function getForbiddenInfo(r, c, color) {
+            const isBlackCheck = document.getElementById('blackForbidden').checked;
+            const isWhiteCheck = document.getElementById('whiteForbidden').checked;
+            
+            // 현재 플레이어의 금수 체크 여부 확인
+            if (color === 1 && !isBlackCheck) return null;
+            if (color === 2 && !isWhiteCheck) return null;
+
+            board[r][c] = color;
+            let o3Dirs = new Set();
+            let o4Dirs = new Set();
+            let hasOverline = false;
+            const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+            
+            for (let [dr, dc] of dirs) {
+                const line = getLineString(r, c, dr, dc, color);
+                const dirKey = `${dr},${dc}`;
+                
+                if (isOverline(line)) hasOverline = true;
+                if (isFour(line)) o4Dirs.add(dirKey);
+                if (isOpenThree(line)) o3Dirs.add(dirKey);
+            }
+            board[r][c] = 0;
+
+            if (hasOverline) return { type: "육목", dirs: dirs };
+            const is44 = o4Dirs.size >= 2;
+            const is33 = o3Dirs.size >= 2;
+
+            if (is44 || is33) {
+                return {
+                    type: is44 ? "4-4" : "3-3",
+                    dirs: Array.from(new Set([...o3Dirs, ...o4Dirs])).map(s => s.split(',').map(Number))
+                };
+            }
+            return null;
+        }
+
+        function placeStone(r, c) {
+            if (r < 0 || r >= size || c < 0 || c >= size || board[r][c] !== 0) return false;
+            const fInfo = getForbiddenInfo(r, c, currentPlayer);
+            if (fInfo) { 
+                const playerText = currentPlayer === 1 ? "흑색" : "백색";
+                msgDisplay.innerText = `[${playerText} 금수] ${fInfo.type}!`; 
+                lastForbiddenMove = { r, c, dirs: fInfo.dirs }; 
+                draw(); 
+                return false; 
+            }
+            
+            msgDisplay.innerText = ""; board[r][c] = currentPlayer; history.push({r, c, p: currentPlayer});
+            document.getElementById('undoBtn').disabled = false; draw();
+            if (checkWin(r, c)) { endGame((currentPlayer === 1 ? "흑색" : "백색") + " 승리!"); return true; }
+            currentPlayer = (currentPlayer === 1) ? 2 : 1; currentTurnTime = parseInt(document.getElementById('timeInput').value);
+            updateStatus(); startTimer(); return true;
+        }
+
+        function getLineString(r, c, dr, dc, color) {
+            let s = ""; 
+            const temp = board[r][c]; board[r][c] = color;
+            // 금수 판정을 위해 더 긴 범위를 탐색 (육목 및 뛰어삼 대비)
+            for (let i = -5; i <= 5; i++) {
+                let nr = r+dr*i, nc = c+dc*i;
+                if (nr<0 || nr>=size || nc<0 || nc>=size) s += "O";
+                else if (board[nr][nc] === color) s += "X";
+                else if (board[nr][nc] === 0) s += "_";
+                else s += "O";
+            }
+            board[r][c] = temp; return s;
+        }
+
+        function checkWin(r, c) {
+            const color = board[r][c]; const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+            for (let [dr, dc] of dirs) {
+                let count = 1;
+                for (let s of [1, -1]) {
+                    let nr = r+dr*s, nc = c+dc*s;
+                    while(nr>=0 && nr<size && nc>=0 && nc<size && board[nr][nc] === color) { count++; nr+=dr*s; nc+=dc*s; }
+                }
+                // 금수 체크가 활성화된 경우 5목만 승리(육목 제외)
+                const isCheck = (color === 1) ? document.getElementById('blackForbidden').checked : document.getElementById('whiteForbidden').checked;
+                if (isCheck) { if (count === 5) return true; }
+                else { if (count >= 5) return true; }
+            }
+            return false;
+        }
+
+        function makeBotMove() {
+            if (gameOver || isPaused) return;
+            const defBias = parseFloat(document.getElementById('botDefense').value);
+            let candidates = [];
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (board[r][c] === 0 && !getForbiddenInfo(r, c, 2)) {
+                        let score = evaluate(r, c, defBias);
+                        candidates.push({r, c, score});
+                    }
+                }
+            }
+            candidates.sort((a, b) => b.score - a.score);
+            if (candidates.length > 0) placeStone(candidates[0].r, candidates[0].c);
+        }
+
+        function evaluate(r, c, db) {
+            let s = 0; const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+            for (let [dr, dc] of dirs) {
+                s += weight(getLineString(r, c, dr, dc, 2));
+                s += weight(getLineString(r, c, dr, dc, 1)) * db;
+            }
+            return s + (7 - Math.abs(7-r)) + (7 - Math.abs(7-c));
+        }
+
+        function weight(l) {
+            if (l.includes("XXXXXX")) return -5000; // 육목 기피
+            if (l.includes("XXXXX")) return 100000;
+            if (l.includes("_XXXX_")) return 10000;
+            if (l.includes("XXXX_") || l.includes("_XXXX") || l.includes("X_XXX") || l.includes("XX_XX")) return 2500;
+            if (l.includes("_XXX__") || l.includes("__XXX_") || l.includes("_X_XX_") || l.includes("_XX_X_")) return 1500;
+            return 0;
+        }
+
+        function updateStatus() { statusDisplay.innerText = (currentPlayer === 1 ? "흑색" : "백색") + " 차례"; }
+        function endGame(m) { gameOver = true; statusDisplay.innerText = m; document.getElementById('pauseBtn').disabled = true; clearInterval(timerInterval); }
+        function undo() { if (history.length > 0) { const s = document.getElementById('aiMode').checked ? 2 : 1; for(let i=0; i<s; i++) if(history.length > 0) { const l = history.pop(); board[l.r][l.c] = 0; currentPlayer = l.p; } lastForbiddenMove = null; draw(); updateStatus(); } }
+        function applyPreset() { const p = document.getElementById('botPreset').value, d = document.getElementById('botDepth'), df = document.getElementById('botDefense'); if (p === 'easy') { d.value = 1; df.value = 0.7; } else if (p === 'normal') { d.value = 1; df.value = 1.1; } else if (p === 'hard') { d.value = 2; df.value = 1.8; } updateBotUI(); }
+        function updateBotUI() { document.getElementById('depthVal').innerText = document.getElementById('botDepth').value; document.getElementById('defVal').innerText = document.getElementById('botDefense').value; }
+        draw();
+    </script>
+</body>
+</html>
