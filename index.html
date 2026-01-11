@@ -3,91 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <link rel="icon" type="image/png" href="./icon.png">
-    <title>오목 Pro v5.6 (Mobile)</title>
+    <title>오목 Pro v6.1</title>
     <style>
-        :root { --primary: #34495e; --accent: #e74c3c; --bg: #f4f7f6; }
+        :root { --primary: #34495e; --accent: #e74c3c; --bg: #f4f7f6; --success: #27ae60; --warning: #f39c12; }
         body { 
             display: flex; flex-direction: column; align-items: center; 
             background-color: var(--bg); font-family: 'Malgun Gothic', sans-serif; 
             margin: 0; padding: 10px; box-sizing: border-box;
-            touch-action: manipulation; /* 더블탭 줌 방지 */
+            touch-action: manipulation;
         }
-        h1 { font-size: 1.5rem; margin: 10px 0; }
+        h1 { font-size: 1.4rem; margin: 10px 0; color: var(--primary); }
         
-        /* 컨트롤 패널 반응형 설계 */
+        /* 상단 기본 설정 패널 */
         .controls { 
-            margin-bottom: 15px; padding: 15px; background: white; 
+            margin-bottom: 12px; padding: 12px; background: white; 
             border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-            display: flex; flex-direction: column; gap: 12px; 
-            width: 95%; max-width: 650px; box-sizing: border-box;
+            display: flex; flex-direction: column; gap: 10px; 
+            width: 100%; max-width: 600px; box-sizing: border-box;
         }
+
         .config-row { 
-            display: flex; gap: 8px; align-items: center; 
-            flex-wrap: wrap; justify-content: center; font-size: 0.9rem;
+            display: flex; gap: 12px; align-items: center; 
+            flex-wrap: wrap; justify-content: center; font-size: 0.85rem; 
         }
-        .bot-panel { background: #ebf2f6; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
-        .slider-box { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; flex: 1; min-width: 140px; }
-        
+        .config-row label, .config-row div { white-space: nowrap; }
+
+        /* 봇 전용 패널 */
+        .bot-panel { 
+            background: #ebf2f6; padding: 12px; border-radius: 8px; 
+            display: flex; flex-direction: column; gap: 10px; 
+        }
+        .bot-header { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #d0dbe5; padding-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
+
+        .slider-box { 
+            display: flex; align-items: center; gap: 8px; 
+            font-size: 0.85rem; flex: 1; min-width: 140px;
+            white-space: nowrap; width: 100%;
+        }
+        input[type="range"] { flex: 1; cursor: pointer; height: 18px; min-width: 50px; }
+
         #status { font-size: 1.1rem; font-weight: bold; margin: 5px 0; color: var(--primary); }
-        #timer { font-family: monospace; color: var(--accent); font-size: 1.5rem; font-weight: bold; }
+        #timer { font-family: monospace; color: var(--accent); font-size: 1.6rem; font-weight: bold; }
         
-        /* 캔버스 반응형: 화면 너비에 맞춤 */
-        .canvas-container {
-            width: 100%; max-width: 600px; aspect-ratio: 1 / 1;
-            display: flex; justify-content: center;
-        }
-        canvas { 
-            background-color: #e3a05b; box-shadow: 0 8px 25px rgba(0,0,0,0.2); 
-            cursor: pointer; border-radius: 4px; 
-            width: 100%; height: auto; /* CSS로 크기 조절 */
-        }
+        .canvas-container { width: 100%; max-width: 600px; aspect-ratio: 1 / 1; display: flex; justify-content: center; position: relative; }
+        canvas { background-color: #e3a05b; box-shadow: 0 8px 25px rgba(0,0,0,0.2); cursor: pointer; border-radius: 4px; width: 100%; height: auto; }
 
-        .buttons { margin-top: 15px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-        button { padding: 10px 15px; font-size: 0.9rem; cursor: pointer; background-color: var(--primary); color: white; border: none; border-radius: 6px; }
-        button#pauseBtn { background-color: #f39c12; }
-        button:disabled { background-color: #bdc3c7; }
+        /* 하단 버튼 바 */
+        .buttons { margin-top: 15px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 600px; }
+        button { flex: 1; min-width: 80px; padding: 12px 10px; font-size: 0.9rem; cursor: pointer; background-color: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; transition: background 0.2s; }
         
-        .forbidden-msg { color: var(--accent); font-size: 1rem; height: 24px; font-weight: bold; margin-top: 5px; text-align: center; }
-        .check-group { border: 1px solid #ddd; padding: 5px 8px; border-radius: 5px; background: #fff; display: flex; gap: 8px; }
+        /* 상태별 버튼 색상 */
+        #actionBtn.start { background-color: var(--success); }
+        #actionBtn.pause { background-color: var(--warning); }
+        #actionBtn.resume { background-color: var(--success); }
+        
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        
+        .forbidden-msg { color: var(--accent); font-size: 1.1rem; height: 26px; font-weight: bold; margin-top: 5px; text-align: center; }
+        .check-group { border: 1px solid #ddd; padding: 4px 8px; border-radius: 5px; background: #fff; display: flex; gap: 8px; }
 
-        @media (max-width: 480px) {
-            h1 { font-size: 1.2rem; }
-            .config-row { gap: 5px; }
-            button { padding: 8px 12px; font-size: 0.8rem; }
+        /* 모바일 대응 */
+        @media (max-width: 550px) {
+            .bot-panel .config-row { flex-direction: column; align-items: stretch; gap: 10px; }
+            .slider-box { width: 100%; }
+            #botPreset { width: 100%; }
         }
     </style>
 </head>
 <body>
 
-    <h1>오목 <small style="font-size: 0.5em; color: #888;">v5.6 Pro Mobile</small></h1>
+    <h1>오목 <small style="font-size: 0.5em; color: #888;">v6.1 Pro</small></h1>
     
     <div class="controls">
         <div class="config-row">
-            <div>시간: <input type="number" id="timeInput" value="30" min="5" style="width:35px">s</div>
-            <label><input type="checkbox" id="aiMode" checked> 봇</label>
+            <div>제한시간: <input type="number" id="timeInput" value="30" min="5" style="width:35px">s</div>
             <div class="check-group">
                 <label><input type="checkbox" id="blackForbidden" checked> 흑 금수</label>
                 <label><input type="checkbox" id="whiteForbidden"> 백 금수</label>
             </div>
-            <button onclick="startGame()" style="background-color: #27ae60;">시작</button>
         </div>
 
         <div class="bot-panel">
+            <div class="bot-header">
+                <label style="cursor: pointer;"><input type="checkbox" id="aiMode" checked> 봇 대전 활성화</label>
+            </div>
             <div class="config-row">
-                <select id="botPreset" onchange="applyPreset()">
+                <select id="botPreset" onchange="applyPreset()" style="padding: 4px; border-radius: 4px;">
                     <option value="easy">쉬움</option>
                     <option value="normal" selected>보통</option>
                     <option value="hard">어려움</option>
                 </select>
-                <div class="slider-box">깊이: <b id="depthVal">1</b> <input type="range" id="botDepth" min="1" max="2" value="1" style="width:60px" oninput="updateBotUI()"></div>
-                <div class="slider-box">수비: <b id="defVal">1.1</b> <input type="range" id="botDefense" min="0.5" max="2.5" step="0.1" value="1.1" style="width:60px" oninput="updateBotUI()"></div>
+                <div class="slider-box">깊이: <b id="depthVal" style="width:12px; display:inline-block">1</b> <input type="range" id="botDepth" min="1" max="2" value="1" oninput="updateBotUI()"></div>
+                <div class="slider-box">수비: <b id="defVal" style="width:25px; display:inline-block">1.1</b> <input type="range" id="botDefense" min="0.5" max="2.5" step="0.1" value="1.1" oninput="updateBotUI()"></div>
             </div>
         </div>
     </div>
 
     <div id="timer">00:00</div>
-    <div id="status">게임을 시작하세요.</div>
+    <div id="status">대국을 시작하세요.</div>
     <div class="forbidden-msg" id="msg"></div>
 
     <div class="canvas-container">
@@ -96,7 +109,7 @@
 
     <div class="buttons">
         <button id="undoBtn" onclick="undo()" disabled>무르기</button>
-        <button id="pauseBtn" onclick="togglePause()" disabled>일시정지</button>
+        <button id="actionBtn" class="start" onclick="handleAction()">게임 시작</button>
         <button onclick="location.reload()">초기화</button>
     </div>
 
@@ -106,6 +119,7 @@
         const statusDisplay = document.getElementById('status');
         const timerDisplay = document.getElementById('timer');
         const msgDisplay = document.getElementById('msg');
+        const actionBtn = document.getElementById('actionBtn');
         
         const size = 15, padding = 40, cellSize = (canvas.width - padding * 2) / (size - 1);
         let board = Array.from({ length: size }, () => Array(size).fill(0));
@@ -117,15 +131,41 @@
         const isOpenThree = (l) => /_XXX__|__XXX_|_X_XX_|_XX_X_/.test(l);
         const isOverline = (l) => /XXXXXX/.test(l);
 
+        // 하단 통합 버튼 핸들러
+        function handleAction() {
+            if (gameOver) {
+                startGame();
+            } else {
+                togglePause();
+            }
+        }
+
         function startGame() {
             board = Array.from({ length: size }, () => Array(size).fill(0));
             history = []; currentPlayer = 1; gameOver = false; isPaused = false;
             document.getElementById('undoBtn').disabled = true;
-            document.getElementById('pauseBtn').disabled = false;
-            document.getElementById('pauseBtn').innerText = "일시정지";
+            
+            // 버튼 상태 변경: 시작 -> 일시정지
+            actionBtn.innerText = "일시정지";
+            actionBtn.className = "pause";
+            
             msgDisplay.innerText = ""; lastForbiddenMove = null;
             currentTurnTime = parseInt(document.getElementById('timeInput').value);
             startTimer(); updateStatus(); draw();
+        }
+
+        function togglePause() {
+            if (gameOver) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                actionBtn.innerText = "계속하기";
+                actionBtn.className = "resume";
+                statusDisplay.innerText = "일시정지 중";
+            } else {
+                actionBtn.innerText = "일시정지";
+                actionBtn.className = "pause";
+                updateStatus();
+            }
         }
 
         function startTimer() {
@@ -171,27 +211,26 @@
 
         function drawForbiddenDebug(move) {
             const { r, c, dirs } = move;
-            ctx.save(); ctx.strokeStyle = "rgba(231, 76, 60, 0.5)"; ctx.lineWidth = 8; ctx.lineCap = "round";
+            ctx.save(); ctx.strokeStyle = "rgba(231, 76, 60, 0.5)"; ctx.lineWidth = 10; ctx.lineCap = "round";
             dirs.forEach(([dr, dc]) => {
                 ctx.beginPath();
                 ctx.moveTo(padding + (c - dc * 3) * cellSize, padding + (r - dr * 3) * cellSize);
                 ctx.lineTo(padding + (c + dc * 3) * cellSize, padding + (r + dr * 3) * cellSize);
                 ctx.stroke();
             });
+            ctx.strokeStyle = "#e74c3c"; ctx.lineWidth = 3;
+            const x = padding + c * cellSize, y = padding + r * cellSize, d = 10;
+            ctx.beginPath(); ctx.moveTo(x-d, y-d); ctx.lineTo(x+d, y+d); ctx.moveTo(x+d, y-d); ctx.lineTo(x-d, y+d); ctx.stroke();
             ctx.restore();
         }
 
-        // 모바일 좌표 계산 최적화
         canvas.addEventListener('click', (e) => {
             if (gameOver || isPaused || (document.getElementById('aiMode').checked && currentPlayer === 2)) return;
             const rect = canvas.getBoundingClientRect();
-            // 화면 크기와 실제 캔버스 해상도 비율 계산
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const col = Math.round(((e.clientX - rect.left) * scaleX - padding) / cellSize);
-            const row = Math.round(((e.clientY - rect.top) * scaleY - padding) / cellSize);
-            
-            lastForbiddenMove = null;
+            const scale = canvas.width / rect.width;
+            const col = Math.round(((e.clientX - rect.left) * scale - padding) / cellSize);
+            const row = Math.round(((e.clientY - rect.top) * scale - padding) / cellSize);
+            lastForbiddenMove = null; 
             if (placeStone(row, col)) if (document.getElementById('aiMode').checked && !gameOver) setTimeout(makeBotMove, 400);
         });
 
@@ -201,20 +240,36 @@
             if (color === 1 && !isBlackCheck) return null;
             if (color === 2 && !isWhiteCheck) return null;
 
-            board[r][c] = color;
-            let o3Dirs = new Set(), o4Dirs = new Set(), hasOverline = false;
+            let o3Dirs = [], o4Dirs = [], hasOverline = false;
             const dirs = [[0,1],[1,0],[1,1],[1,-1]];
             for (let [dr, dc] of dirs) {
                 const line = getLineString(r, c, dr, dc, color);
-                if (isOverline(line)) hasOverline = true;
-                if (isFour(line)) o4Dirs.add(`${dr},${dc}`);
-                if (isOpenThree(line)) o3Dirs.add(`${dr},${dc}`);
+                if (isOverline(line)) { hasOverline = true; break; } 
+                else if (isFour(line)) o4Dirs.push([dr, dc]);
+                else if (isOpenThree(line)) o3Dirs.push([dr, dc]);
             }
-            board[r][c] = 0;
             if (hasOverline) return { type: "육목", dirs: dirs };
-            if (o4Dirs.size >= 2) return { type: "4-4", dirs: Array.from(o4Dirs).map(s => s.split(',').map(Number)) };
-            if (o3Dirs.size >= 2) return { type: "3-3", dirs: Array.from(o3Dirs).map(s => s.split(',').map(Number)) };
+            const is44 = o4Dirs.length >= 2;
+            const is33 = o3Dirs.length >= 2;
+            const is34 = o4Dirs.length >= 1 && o3Dirs.length >= 1;
+            if (is44 || is33 || is34) {
+                let type = is44 ? "4-4" : (is33 ? "3-3" : "3-4");
+                return { type, dirs: [...o3Dirs, ...o4Dirs] };
+            }
             return null;
+        }
+
+        function getLineString(r, c, dr, dc, color) {
+            let s = ""; 
+            for (let i = -5; i <= 5; i++) {
+                let nr = r+dr*i, nc = c+dc*i;
+                if (nr === r && nc === c) s += "X"; 
+                else if (nr<0 || nr>=size || nc<0 || nc>=size) s += "O";
+                else if (board[nr][nc] === color) s += "X";
+                else if (board[nr][nc] === 0) s += "_";
+                else s += "O";
+            }
+            return s;
         }
 
         function placeStone(r, c) {
@@ -222,30 +277,20 @@
             const fInfo = getForbiddenInfo(r, c, currentPlayer);
             if (fInfo) { 
                 msgDisplay.innerText = `[${currentPlayer === 1 ? '흑' : '백'} 금수] ${fInfo.type}!`; 
-                lastForbiddenMove = { r, c, dirs: fInfo.dirs }; draw(); return false; 
+                lastForbiddenMove = { r, c, dirs: fInfo.dirs }; 
+                draw(); return false; 
             }
             msgDisplay.innerText = ""; board[r][c] = currentPlayer; history.push({r, c, p: currentPlayer});
-            document.getElementById('undoBtn').disabled = false; draw();
-            if (checkWin(r, c)) { endGame((currentPlayer === 1 ? "흑색" : "백색") + " 승리!"); return true; }
+            document.getElementById('undoBtn').disabled = false;
+            if (checkWin(r, c)) { draw(); endGame((currentPlayer === 1 ? "흑색" : "백색") + " 승리!"); return true; }
             currentPlayer = (currentPlayer === 1) ? 2 : 1; currentTurnTime = parseInt(document.getElementById('timeInput').value);
-            updateStatus(); startTimer(); return true;
-        }
-
-        function getLineString(r, c, dr, dc, color) {
-            let s = ""; const temp = board[r][c]; board[r][c] = color;
-            for (let i = -5; i <= 5; i++) {
-                let nr = r+dr*i, nc = c+dc*i;
-                if (nr<0 || nr>=size || nc<0 || nc>=size) s += "O";
-                else if (board[nr][nc] === color) s += "X";
-                else if (board[nr][nc] === 0) s += "_";
-                else s += "O";
-            }
-            board[r][c] = temp; return s;
+            updateStatus(); startTimer(); draw(); return true;
         }
 
         function checkWin(r, c) {
-            const color = board[r][c]; const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+            const color = board[r][c];
             const isCheck = (color === 1) ? document.getElementById('blackForbidden').checked : document.getElementById('whiteForbidden').checked;
+            const dirs = [[0,1],[1,0],[1,1],[1,-1]];
             for (let [dr, dc] of dirs) {
                 let count = 1;
                 for (let s of [1, -1]) {
@@ -275,7 +320,8 @@
         function evaluate(r, c, db) {
             let s = 0; const dirs = [[0,1],[1,0],[1,1],[1,-1]];
             for (let [dr, dc] of dirs) {
-                s += weight(getLineString(r, c, dr, dc, 2));
+                const line = getLineString(r, c, dr, dc, 2);
+                s += weight(line);
                 s += weight(getLineString(r, c, dr, dc, 1)) * db;
             }
             return s + (7 - Math.abs(7-r)) + (7 - Math.abs(7-c));
@@ -290,9 +336,15 @@
             return 0;
         }
 
-        function togglePause() { isPaused = !isPaused; document.getElementById('pauseBtn').innerText = isPaused ? "계속" : "일시정지"; updateStatus(); }
-        function updateStatus() { statusDisplay.innerText = isPaused ? "일시정지 중" : (currentPlayer === 1 ? "흑색 차례" : "백색 차례"); }
-        function endGame(m) { gameOver = true; statusDisplay.innerText = m; clearInterval(timerInterval); }
+        function updateStatus() { statusDisplay.innerText = (currentPlayer === 1 ? "흑색" : "백색") + " 차례"; }
+        function endGame(m) { 
+            gameOver = true; 
+            statusDisplay.innerText = m; 
+            clearInterval(timerInterval); 
+            // 게임 종료 후 버튼 다시 시작으로 변경
+            actionBtn.innerText = "게임 시작";
+            actionBtn.className = "start";
+        }
         function undo() { if (history.length > 0) { const s = document.getElementById('aiMode').checked ? 2 : 1; for(let i=0; i<s; i++) if(history.length > 0) { const l = history.pop(); board[l.r][l.c] = 0; currentPlayer = l.p; } lastForbiddenMove = null; draw(); updateStatus(); } }
         function applyPreset() { const p = document.getElementById('botPreset').value, d = document.getElementById('botDepth'), df = document.getElementById('botDefense'); if (p === 'easy') { d.value = 1; df.value = 0.7; } else if (p === 'normal') { d.value = 1; df.value = 1.1; } else if (p === 'hard') { d.value = 2; df.value = 1.8; } updateBotUI(); }
         function updateBotUI() { document.getElementById('depthVal').innerText = document.getElementById('botDepth').value; document.getElementById('defVal').innerText = document.getElementById('botDefense').value; }
